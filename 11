@@ -1,0 +1,37 @@
+import base64, re, string
+
+r13 = str.maketrans(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    "NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm",
+)
+cinv = str.maketrans(
+    string.ascii_lowercase[4:] + string.ascii_lowercase[:4],
+    string.ascii_lowercase,
+)
+
+raw = open("intercepted.txt", "rb").read().decode("utf-8", errors="ignore")
+blob = re.sub(r"[\x00-\x1f\x7f\s]+", "", raw)
+
+idx = blob.find("313312")
+if idx != -1:
+    blob = blob[idx:]
+
+for d in range(80):
+    if not blob:
+        break
+    print(f"[{d}] len={len(blob)} start={blob[:90]}")
+    tag, rest = blob[0], blob[1:]
+    if tag == "1":
+        blob = rest.translate(r13)
+    elif tag == "2":
+        clean = re.sub(r"\s+", "", rest)
+        padded = clean + "=" * ((4 - len(clean) % 4) % 4)
+        blob = base64.b64decode(padded, validate=False).decode("utf-8", errors="replace")
+    elif tag == "3":
+        blob = rest.translate(cinv)
+    else:
+        print(f"STOPPED at depth {d}: first char is {tag!r}")
+        print("Remaining:\n", blob[:500])
+        break
+else:
+    print("DONE at 80:\n", blob[:500])
